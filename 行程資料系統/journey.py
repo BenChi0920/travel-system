@@ -5,8 +5,8 @@ from datetime import datetime
 
 app = Flask(__name__)
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(BASE_DIR, "data.db")
+# 🔥 Render 一定要用 /tmp
+DB_PATH = "/tmp/data.db"
 
 def init_db():
     conn = sqlite3.connect(DB_PATH)
@@ -25,9 +25,10 @@ def init_db():
 
 init_db()
 
+# 🔥 首頁（改這個最穩）
 @app.route("/")
 def home():
-    return open("index.html").read()
+    return open("index.html", encoding="utf-8").read()
 
 @app.route("/api/all")
 def get_all():
@@ -57,27 +58,22 @@ def get_one(id):
 def save():
     data = request.get_json()
 
-    if not data:
-        return "資料錯誤", 400
-
     id = data.get("id", "").strip()
     name = data.get("name", "").strip()
     birthday = data.get("birthday", "").strip()
     stay = data.get("stay", "")
     note = data.get("note", "")
 
-    # 🔥 台胞證驗證
     if not id.isdigit() or len(id) not in [8,10]:
         return "台胞證格式錯誤", 400
 
     if not name or not birthday:
         return "姓名 / 生日必填", 400
 
-    # 🔥 日期統一（只允許 YYYY-MM-DD）
     try:
         birthday = datetime.strptime(birthday, "%Y-%m-%d").strftime("%Y-%m-%d")
     except:
-        return "生日格式錯誤（需 YYYY-MM-DD）", 400
+        return "生日格式錯誤", 400
 
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
@@ -91,8 +87,7 @@ def save():
             return "驗證失敗：生日不正確", 400
 
         c.execute("""
-        UPDATE users
-        SET name=?, birthday=?, stay=?, note=?
+        UPDATE users SET name=?, birthday=?, stay=?, note=?
         WHERE id=?
         """, (name, birthday, stay, note, id))
     else:
@@ -113,7 +108,3 @@ def delete(id):
     conn.commit()
     conn.close()
     return "deleted"
-
-if __name__ == "__main__":
-    app.run(debug=True)
-
