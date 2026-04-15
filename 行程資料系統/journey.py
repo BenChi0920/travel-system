@@ -27,7 +27,7 @@ init_db()
 
 @app.route("/")
 def home():
-    return send_from_directory(BASE_DIR, "index.html")
+    return open("index.html").read()
 
 @app.route("/api/all")
 def get_all():
