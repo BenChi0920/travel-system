@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>旅遊資料登記</title>
+
+<style>
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI";
+  background: #f2f2f7;
+  margin: 0;
+  padding: 15px;
+}
+
+.card {
+  background: white;
+  border-radius: 14px;
+  padding: 18px;
+  margin-bottom: 15px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+h2 {
+  margin: 0 0 10px;
+  font-size: 18px;
+}
+
+input, select {
+  width: 100%;
+  height: 48px;
+  padding: 0 14px;
+  margin-top: 10px;
+  border-radius: 10px;
+  border: 1px solid #ddd;
+  font-size: 15px;
+  box-sizing: border-box;
+  appearance: none;
+}
+
+button {
+  width: 100%;
+  height: 48px;
+  margin-top: 12px;
+  border-radius: 10px;
+  border: none;
+  font-size: 15px;
+  font-weight: bold;
+}
+
+.btn-green { background:#06c755; color:white; }
+.btn-gray { background:#e5e5ea; }
+
+/* 表格 */
+.table-header, .row {
+  display:grid;
+  grid-template-columns:1fr 1fr 1fr 0.6fr 0.5fr;
+  padding:10px;
+  align-items:center;
+}
+
+.table-header {
+  font-weight:bold;
+  border-bottom:2px solid #ddd;
+}
+
+.row {
+  border-bottom:1px solid #eee;
+}
+
+.cell {
+  text-align:center;
+}
+
+.btn-del {
+  background:#ef4444;
+  color:white;
+  padding:6px 10px;
+  border-radius:6px;
+  font-size:12px;
+  border:none;
+}
+</style>
+</head>
+
+<body>
+
+<div class="card">
+<h2>旅遊資料登記</h2>
+
+<input id="id" placeholder="台胞證"
+oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+
+<button class="btn-gray" onclick="loadData()">查詢資料</button>
+
+<input id="name" placeholder="姓名">
+
+<input id="birthday" type="date">
+
+<select id="stay">
+<option value="">是否住宿</option>
+<option value="是">是</option>
+<option value="否">否</option>
+</select>
+
+<input id="note" placeholder="備註">
+
+<button class="btn-green" onclick="submitData()">送出 / 更新</button>
+</div>
+
+<div class="card">
+<h2>目前資料</h2>
+
+<!-- 🔥 新增搜尋（只有這個新功能） -->
+<input id="search" placeholder="搜尋姓名 / 台胞證"
+oninput="filterData()" style="margin-bottom:10px;">
+
+<div class="table-header">
+<div class="cell">姓名</div>
+<div class="cell">生日</div>
+<div class="cell">台胞證</div>
+<div class="cell">住宿</div>
+<div class="cell">操作</div>
+</div>
+
+<div id="list-table"></div>
+</div>
+
+<script>
+
+const API="/api";
+
+let allData = []; // 🔥 存資料給搜尋用
+
+window.onload = function(){
+  let today = new Date().toISOString().split("T")[0];
+  document.getElementById("birthday").max = today;
+  loadAllData();
+};
+
+function validateID(id){
+  return /^\d{8}$|^\d{10}$/.test(id);
+}
+
+function mask(id){
+  return id.substring(0,3)+"****"+id.slice(-2);
+}
+
+function loadData(){
+  let id=document.getElementById("id").value.trim();
+
+  if(!validateID(id)){
+    alert("台胞證錯誤");
+    return;
+  }
+
+  fetch(API+"/"+id)
+  .then(r=>r.json())
+  .then(d=>{
+    if(!d.name){ alert("查無資料"); return;}
+
+    document.getElementById("name").value = d.name;
+    document.getElementById("birthday").value = d.birthday;
+    document.getElementById("stay").value = d.stay;
+    document.getElementById("note").value = d.note || "";
+  });
+}
+
+function submitData(){
+
+  let id = document.getElementById("id").value.trim();
+  let nameVal = document.getElementById("name").value.trim();
+  let birthdayVal = document.getElementById("birthday").value;
+  let stayVal = document.getElementById("stay").value;
+  let noteVal = document.getElementById("note").value;
+
+  if(!validateID(id)){
+    alert("台胞證錯誤");
+    return;
+  }
+
+  if(!nameVal){
+    alert("姓名必填");
+    return;
+  }
+
+  if(!birthdayVal){
+    alert("請選生日");
+    return;
+  }
+
+  fetch(API+"/save",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({
+      id:id,
+      name:nameVal,
+      birthday:birthdayVal,
+      stay:stayVal,
+      note:noteVal
+    })
+  })
+  .then(r=>r.text())
+  .then(m=>{
+    alert(m);
+    loadAllData();
+  });
+}
+
+function deleteData(id){
+  if(!confirm("確定刪除？")) return;
+  fetch(API+"/delete/"+id,{method:"DELETE"})
+  .then(()=>loadAllData());
+}
+
+/* 🔥 改這裡（支援搜尋） */
+function loadAllData(){
+  fetch(API+"/all")
+  .then(r=>r.json())
+  .then(data=>{
+    allData = data;
+    renderTable(data);
+  });
+}
+
+/* 🔥 抽出畫表格 */
+function renderTable(data){
+  let tableHtml="";
+
+  data.forEach(r=>{
+    tableHtml+=`
+    <div class="row">
+      <div class="cell">${r.name}</div>
+      <div class="cell">${r.birthday}</div>
+      <div class="cell">${mask(r.id)}</div>
+      <div class="cell">${r.stay}</div>
+      <div class="cell">
+        <button class="btn-del"
+          onclick="deleteData('${r.id}')">刪</button>
+      </div>
+    </div>`;
+  });
+
+  document.getElementById("list-table").innerHTML=tableHtml;
+}
+
+/* 🔥 即時搜尋 */
+function filterData(){
+  let keyword = document.getElementById("search").value.toLowerCase();
+
+  let filtered = allData.filter(r =>
+    r.name.toLowerCase().includes(keyword) ||
+    r.id.includes(keyword)
+  );
+
+  renderTable(filtered);
+}
+
+</script>
+
+</body>
+</html>
